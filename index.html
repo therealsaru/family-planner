@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Family Planner V2</title>
+  <title>Family Planner</title>
   <meta name="description" content="Your family's private planner — events, reminders & lists." />
   <meta name="theme-color" content="#1a1a2e" />
   <link rel="manifest" href="manifest.json" />
@@ -398,27 +398,20 @@ window._submitPin = function() {
 
   if (!entered) { errEl.textContent = 'Please enter the family PIN.'; return; }
 
-  // Validate by trying to read from the PIN path in Firebase
-  showSyncBanner('Checking PIN…');
-  const testRef = ref(db, `/family/${entered}/members`);
-  onValue(testRef, (snap) => {
-    hideSyncBanner();
-    // Any result (even null) means the PIN path is reachable — wrong PIN = we check below
-    // We validate by storing PIN and checking it matches a known hash pattern
-    // Simple approach: PIN is correct if it matches our hardcoded value
-    if (entered !== 'tekin5886') {
-      inp.classList.add('error');
-      errEl.textContent = 'Incorrect PIN. Please try again.';
-      setTimeout(() => inp.classList.remove('error'), 400);
-      inp.value = '';
-      return;
-    }
-    // PIN correct
-    dbPath = `/family/${entered}`;
-    if (remember) localStorage.setItem(PIN_STORAGE_KEY, entered);
-    document.getElementById('pin-screen').style.display = 'none';
-    initFirebase();
-  }, { onlyOnce: true });
+  // Validate PIN locally — no Firebase call needed before PIN is confirmed
+  if (entered !== 'tekin5886') {
+    inp.classList.add('error');
+    errEl.textContent = 'Incorrect PIN. Please try again.';
+    setTimeout(() => inp.classList.remove('error'), 400);
+    inp.value = '';
+    return;
+  }
+
+  // PIN correct — now connect to Firebase
+  dbPath = `/family/${entered}`;
+  if (remember) localStorage.setItem(PIN_STORAGE_KEY, entered);
+  document.getElementById('pin-screen').style.display = 'none';
+  initFirebase();
 };
 
 // ── FIREBASE INIT ─────────────────────────────────
