@@ -423,23 +423,35 @@ function initFirebase() {
     state.events  = data.events  || {};
     state.lists   = data.lists   || {};
 
+    // If brand new database, seed it then wait for the next onValue trigger
     if (members().length === 0) { seedDefaults(); return; }
 
     hideSyncBanner();
     setSyncStatus('live');
-    renderAuth();
+
+    // Always hide pin screen
+    document.getElementById('pin-screen').style.display = 'none';
+
     if (currentUser && state.members[currentUser]) {
+      // Known user — go straight to app
       switchToApp();
-    } else if (currentUser) {
+    } else {
+      // No user selected yet — show profile picker
       currentUser = null;
       localStorage.removeItem('fp_user');
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('auth-screen').style.display = 'flex';
+      renderAuth();
     }
     scheduleNotifications();
-    if (currentUser) showPage(currentPage);
   }, (err) => {
     console.error(err);
     setSyncStatus('offline');
-    showSyncBanner('Connection lost — retrying…');
+    // Show auth screen with error message so page isn't blank
+    document.getElementById('pin-screen').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('member-login-list').innerHTML =
+      '<div class="auth-loading" style="color:#e5484d">Could not connect. Check your internet and refresh.</div>';
   });
 }
 
