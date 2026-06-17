@@ -175,6 +175,14 @@
     .save-btn { width:100%; padding:12px; border-radius:10px; border:none; background:var(--accent); color:white; font-family:inherit; font-size:.92rem; font-weight:600; cursor:pointer; transition:opacity .15s; }
     .save-btn:hover { opacity:.88; }
     .role-select { padding:10px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit; font-size:.9rem; background:var(--bg); color:var(--ink); outline:none; appearance:none; width:100%; }
+    .role-tag { display:inline-flex; align-items:center; gap:6px; background:var(--accent-light); color:var(--accent); border-radius:20px; padding:4px 10px; font-size:.8rem; font-weight:500; }
+    .role-tag button { background:none; border:none; cursor:pointer; color:var(--accent); font-size:.9rem; line-height:1; padding:0; }
+    .role-tag button:hover { color:var(--danger); }
+    .roles-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; min-height:32px; }
+    .role-add-row { display:flex; gap:8px; margin-bottom:4px; }
+    .role-add-row input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-family:inherit; font-size:.88rem; background:var(--bg); color:var(--ink); outline:none; }
+    .role-add-row input:focus { border-color:var(--accent); }
+    .role-add-row button { padding:8px 14px; border-radius:8px; border:none; background:var(--accent); color:white; cursor:pointer; font-family:inherit; font-size:.88rem; font-weight:500; }
 
     /* MODAL */
     .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none; transition:opacity .2s; }
@@ -334,9 +342,7 @@
     <input type="hidden" id="edit-member-id" />
     <div class="field-row"><label>Name</label><input type="text" id="edit-member-name" placeholder="Name" /></div>
     <div class="field-row"><label>Role</label>
-      <select class="role-select" id="edit-member-role">
-        <option>Parent</option><option>Child</option><option>Teenager</option><option>Grandparent</option><option>Other</option>
-      </select>
+      <select class="role-select" id="edit-member-role"></select>
     </div>
     <div class="modal-actions">
       <button class="cancel-btn" onclick="closeModal('edit-member-modal')">Cancel</button>
@@ -366,7 +372,7 @@ const db    = getDatabase(fbApp);
 
 // ── CONSTANTS ────────────────────────────────────
 const COLORS = ['#4f46e5','#e5484d','#30a46c','#f76808','#8b5cf6','#0ea5e9','#ec4899','#64748b'];
-const ROLES  = ['Parent','Child','Teenager','Grandparent','Other'];
+let ROLES  = ['Parent','Child','Teenager','Grandparent','Other'];
 const PIN_STORAGE_KEY = 'fp_pin_verified';
 
 // ── STATE ────────────────────────────────────────
@@ -441,6 +447,8 @@ function initFirebase() {
     state.members = data.members || {};
     state.events  = data.events  || {};
     state.lists   = data.lists   || {};
+    state.roles   = data.roles   || null;
+    if (state.roles) ROLES = Object.values(state.roles);
 
     // If brand new database, seed it then wait for the next onValue trigger
     if (members().length === 0) { seedDefaults(); return; }
@@ -490,7 +498,8 @@ function seedDefaults() {
     lists: {
       l1:{id:'l1',name:'Shopping',items:{i1:{id:'i1',text:'Milk',done:false},i2:{id:'i2',text:'Bread',done:false},i3:{id:'i3',text:'Eggs',done:true}}},
       l2:{id:'l2',name:'Chores',  items:{i4:{id:'i4',text:'Vacuum living room',done:false},i5:{id:'i5',text:'Take out bins',done:false}}},
-    }
+    },
+    roles: { r0:'Parent', r1:'Child', r2:'Teenager', r3:'Grandparent', r4:'Other' }
   };
   set(ref(db, dbPath), defaults);
 }
@@ -692,18 +701,43 @@ function renderMembers(el) {
   members().forEach(m=>{
     html+=`<div class="member-card"><div class="member-card-avatar" style="background:${m.color}">${m.name[0]}</div><div class="member-card-info"><h3>${m.name}</h3><p>${m.role}</p></div><div class="member-card-actions">${COLORS.map(c=>`<div class="color-swatch" style="background:${c};border-color:${m.color===c?'#000':'transparent'}" onclick="window._changeMemberColor('${m.id}','${c}')"></div>`).join('')}<button class="small-btn" onclick="window._openEditMember('${m.id}')">Edit</button><button class="small-btn danger" onclick="window._deleteMember('${m.id}')">✕</button></div></div>`;
   });
-  html+=`<div class="add-member-card"><h3>Add family member</h3><div class="field-row"><label>Name</label><input type="text" id="new-name" placeholder="Name" /></div><div class="field-row"><label>Role</label><select class="role-select" id="new-role">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div><div class="field-row"><label>Colour</label><div class="color-picker-row" id="new-color-picker">${COLORS.map((c,i)=>`<div class="color-swatch" id="nc-${i}" style="background:${c};border-color:${i===0?'#000':'transparent'}" onclick="window._selectNewColor(${i},'${c}')"></div>`).join('')}</div></div><button class="save-btn" onclick="window._addMember()">Add member</button></div></div>`;
+  html+=`<div class="add-member-card"><h3>Add family member</h3><div class="field-row"><label>Name</label><input type="text" id="new-name" placeholder="Name" /></div><div class="field-row"><label>Role</label><select class="role-select" id="new-role">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div><div class="field-row"><label>Colour</label><div class="color-picker-row" id="new-color-picker">${COLORS.map((c,i)=>`<div class="color-swatch" id="nc-${i}" style="background:${c};border-color:${i===0?'#000':'transparent'}" onclick="window._selectNewColor(${i},'${c}')"></div>`).join('')}</div></div><button class="save-btn" onclick="window._addMember()">Add member</button></div>
+  <div class="add-member-card" style="margin-top:14px"><h3>Manage roles</h3>
+    <div class="roles-list" id="roles-list">${ROLES.map(r=>`<span class="role-tag">${r}<button onclick="window._deleteRole('${r}')" title="Remove role">✕</button></span>`).join('')}</div>
+    <div class="role-add-row">
+      <input type="text" id="new-role-input" placeholder="New role name…" onkeydown="if(event.key==='Enter')window._addRole()" maxlength="30"/>
+      <button onclick="window._addRole()">Add</button>
+    </div>
+  </div></div>`;
   el.innerHTML=html; newMemberColor=COLORS[0];
 }
 window._selectNewColor=function(i,c){ newMemberColor=c; COLORS.forEach((_,j)=>{ const sw=document.getElementById(`nc-${j}`); if(sw) sw.style.borderColor=j===i?'#000':'transparent'; }); };
 window._addMember=function(){ const name=document.getElementById('new-name').value.trim(); const role=document.getElementById('new-role').value; if(!name){ showToast('Please enter a name','#e5484d'); return; } const id=uid(); fbSet(`/members/${id}`,{id,name,role,color:newMemberColor}); showToast(`${name} added to the family! 🎉`, newMemberColor); };
+window._addRole=function(){
+  const inp=document.getElementById('new-role-input');
+  const role=inp.value.trim();
+  if(!role){ showToast('Please enter a role name','#e5484d'); return; }
+  if(ROLES.map(r=>r.toLowerCase()).includes(role.toLowerCase())){ showToast('That role already exists','#e5484d'); return; }
+  ROLES.push(role);
+  inp.value='';
+  fbSet(`/roles`,Object.fromEntries(ROLES.map((r,i)=>[`r${i}`,r])));
+  showToast(`Role "${role}" added!`,'#30a46c');
+};
+window._deleteRole=function(role){
+  if(ROLES.length<=1){ showToast('You need at least one role','#e5484d'); return; }
+  if(!confirm(`Remove the "${role}" role?`)) return;
+  ROLES=ROLES.filter(r=>r!==role);
+  fbSet(`/roles`,Object.fromEntries(ROLES.map((r,i)=>[`r${i}`,r])));
+  showToast(`Role "${role}" removed`,'#64748b');
+};
 window._changeMemberColor=function(memberId,color){ fbUpdate(`/members/${memberId}`,{color}); };
 window._deleteMember=function(memberId){ const m=state.members[memberId]; if(!m) return; if(!confirm(`Remove ${m.name} from the family?`)) return; fbRemove(`/members/${memberId}`); };
 window._openEditMember=function(memberId){
   const m=state.members[memberId]; if(!m) return;
   document.getElementById('edit-member-id').value=m.id;
   document.getElementById('edit-member-name').value=m.name;
-  document.getElementById('edit-member-role').value=m.role;
+  const roleSelect=document.getElementById('edit-member-role');
+  roleSelect.innerHTML=ROLES.map(r=>`<option ${r===m.role?'selected':''}>${r}</option>`).join('');
   openModal('edit-member-modal');
 };
 window._saveEditMember=function(){
