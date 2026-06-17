@@ -22,17 +22,39 @@
     body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; }
 
     /* SYNC BANNER */
-    #sync-banner {
-      position:fixed; top:0; left:0; right:0; z-index:200;
-      background:var(--accent); color:white; font-size:.8rem;
-      padding:6px 16px; text-align:center; display:none; align-items:center; justify-content:center; gap:8px;
-    }
+    #sync-banner { position:fixed; top:0; left:0; right:0; z-index:200; background:var(--accent); color:white; font-size:.8rem; padding:6px 16px; text-align:center; display:none; align-items:center; justify-content:center; gap:8px; }
     #sync-banner.show { display:flex; }
     .sync-dot { width:8px; height:8px; border-radius:50%; background:white; animation:pulse 1s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+    /* PIN SCREEN */
+    #pin-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100dvh; padding:24px; gap:28px; }
+    .pin-brand { text-align:center; }
+    .pin-brand h1 { font-family:'DM Serif Display',serif; font-size:2.4rem; line-height:1.1; }
+    .pin-brand p { color:var(--muted); margin-top:8px; font-size:.95rem; }
+    .pin-card { background:var(--surface); border-radius:var(--radius); padding:28px 24px; width:100%; max-width:340px; box-shadow:var(--shadow); }
+    .pin-card h2 { font-size:1rem; font-weight:600; margin-bottom:6px; }
+    .pin-card p { font-size:.83rem; color:var(--muted); margin-bottom:20px; }
+    .pin-input-wrap { position:relative; margin-bottom:14px; }
+    .pin-input {
+      width:100%; padding:14px 44px 14px 16px; border-radius:10px;
+      border:2px solid var(--border); font-family:inherit; font-size:1.1rem;
+      letter-spacing:.18em; background:var(--bg); color:var(--ink); outline:none;
+      transition:border-color .15s;
+    }
+    .pin-input:focus { border-color:var(--accent); }
+    .pin-input.error { border-color:var(--danger); animation:shake .3s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .pin-toggle { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--muted); padding:4px; }
+    .pin-toggle svg { width:18px; height:18px; }
+    .pin-submit { width:100%; padding:13px; border-radius:10px; border:none; background:var(--accent); color:white; font-family:inherit; font-size:.95rem; font-weight:600; cursor:pointer; transition:opacity .15s; }
+    .pin-submit:hover { opacity:.88; }
+    .pin-error { font-size:.82rem; color:var(--danger); margin-top:8px; min-height:18px; }
+    .pin-remember { display:flex; align-items:center; gap:8px; font-size:.83rem; color:var(--muted); margin-bottom:16px; cursor:pointer; }
+    .pin-remember input { accent-color:var(--accent); }
+
     /* AUTH */
-    #auth-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100dvh; padding:24px; gap:32px; }
+    #auth-screen { display:none; flex-direction:column; align-items:center; justify-content:center; min-height:100dvh; padding:24px; gap:32px; }
     .auth-brand { text-align:center; }
     .auth-brand h1 { font-family:'DM Serif Display',serif; font-size:2.4rem; line-height:1.1; }
     .auth-brand p { color:var(--muted); margin-top:8px; }
@@ -172,10 +194,9 @@
     .checkbox-row input { width:16px; height:16px; accent-color:var(--accent); }
 
     /* TOAST */
-    .toast-container { position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:200; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:min(92vw,380px); }
+    .toast-container { position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:min(92vw,380px); }
     .toast { background:var(--ink); color:white; padding:12px 16px; border-radius:12px; font-size:.88rem; line-height:1.4; box-shadow:0 4px 20px rgba(0,0,0,.2); animation:toastIn .3s ease forwards; border-left:4px solid var(--accent); }
     @keyframes toastIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
-
     .fab { position:fixed; right:20px; bottom:calc(var(--nav-h) + 16px); width:52px; height:52px; border-radius:50%; background:var(--accent); color:white; border:none; box-shadow:0 4px 16px rgba(79,70,229,.4); cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:40; font-size:1.5rem; transition:transform .15s; }
     .fab:active { transform:scale(.93); }
     @media (prefers-reduced-motion:reduce) { *{transition:none!important;animation:none!important} }
@@ -183,7 +204,32 @@
 </head>
 <body>
 
-<div id="sync-banner"><div class="sync-dot"></div><span id="sync-msg">Connecting to Firebase…</span></div>
+<div id="sync-banner"><div class="sync-dot"></div><span id="sync-msg">Connecting…</span></div>
+
+<!-- PIN SCREEN -->
+<div id="pin-screen">
+  <div class="pin-brand">
+    <h1>Family<br>Planner</h1>
+    <p>Your private family calendar</p>
+  </div>
+  <div class="pin-card">
+    <h2>Enter family PIN</h2>
+    <p>Only family members with the PIN can access this planner.</p>
+    <div class="pin-input-wrap">
+      <input class="pin-input" type="password" id="pin-input" placeholder="••••••••" maxlength="20"
+        onkeydown="if(event.key==='Enter')window._submitPin()" autocomplete="off" />
+      <button class="pin-toggle" onclick="window._togglePinVisibility()" title="Show/hide PIN">
+        <svg id="pin-eye" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+      </button>
+    </div>
+    <label class="pin-remember">
+      <input type="checkbox" id="pin-remember" checked />
+      Remember on this device
+    </label>
+    <button class="pin-submit" onclick="window._submitPin()">Unlock</button>
+    <div class="pin-error" id="pin-error"></div>
+  </div>
+</div>
 
 <!-- AUTH -->
 <div id="auth-screen">
@@ -286,7 +332,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, onValue, set, remove, update }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ── FIREBASE CONFIG ──────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAvqVllMzz6wvfvInS3w0cpYBhPJ3zBH3k",
   authDomain: "tekin-familyplanner.firebaseapp.com",
@@ -297,169 +342,175 @@ const firebaseConfig = {
   appId: "1:922864539879:web:cea42a6d9a80c463006a42"
 };
 
-const app = initializeApp(firebaseConfig);
-const db  = getDatabase(app);
+const fbApp = initializeApp(firebaseConfig);
+const db    = getDatabase(fbApp);
 
 // ── CONSTANTS ────────────────────────────────────
 const COLORS = ['#4f46e5','#e5484d','#30a46c','#f76808','#8b5cf6','#0ea5e9','#ec4899','#64748b'];
 const ROLES  = ['Parent','Child','Teenager','Grandparent','Other'];
+const PIN_STORAGE_KEY = 'fp_pin_verified';
 
-// ── LOCAL STATE (mirrors Firebase) ───────────────
+// ── STATE ────────────────────────────────────────
 let state = { members:{}, events:{}, lists:{} };
-let currentUser = localStorage.getItem('fp_user') || null;
-let currentPage = 'today';
-let calYear  = new Date().getFullYear();
-let calMonth = new Date().getMonth();
-let selectedDate = todayStr();
+let currentUser   = localStorage.getItem('fp_user') || null;
+let currentPage   = 'today';
+let calYear       = new Date().getFullYear();
+let calMonth      = new Date().getMonth();
+let selectedDate  = todayStr();
 let newMemberColor = COLORS[0];
-let notifTimers = [];
-let fbReady = false;
+let notifTimers   = [];
+let dbPath        = null; // set after PIN verified — data lives at /family/{pin}/
 
 // ── HELPERS ──────────────────────────────────────
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function uid() { return 'x'+Math.random().toString(36).slice(2,9); }
+function uid()     { return 'x'+Math.random().toString(36).slice(2,9); }
 function members() { return Object.values(state.members||{}); }
 function events()  { return Object.values(state.events||{}); }
 function lists()   { return Object.values(state.lists||{}); }
 
 // ── SYNC STATUS ──────────────────────────────────
-function setSyncStatus(status) {
+function setSyncStatus(s) {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
-  el.className = 'sync-indicator ' + status;
-  el.textContent = status === 'syncing' ? '● Saving…'
-                 : status === 'offline'  ? '● Offline'
-                 : '● Live';
+  el.className = 'sync-indicator ' + s;
+  el.textContent = s==='syncing' ? '● Saving…' : s==='offline' ? '● Offline' : '● Live';
 }
+function showSyncBanner(msg) {
+  document.getElementById('sync-msg').textContent = msg;
+  document.getElementById('sync-banner').classList.add('show');
+}
+function hideSyncBanner() { document.getElementById('sync-banner').classList.remove('show'); }
 
-// ── FIREBASE LISTENERS ───────────────────────────
+// ── PIN SCREEN ───────────────────────────────────
+window._togglePinVisibility = function() {
+  const inp = document.getElementById('pin-input');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+};
+
+window._submitPin = function() {
+  const entered  = document.getElementById('pin-input').value.trim();
+  const remember = document.getElementById('pin-remember').checked;
+  const errEl    = document.getElementById('pin-error');
+  const inp      = document.getElementById('pin-input');
+
+  if (!entered) { errEl.textContent = 'Please enter the family PIN.'; return; }
+
+  // Validate by trying to read from the PIN path in Firebase
+  showSyncBanner('Checking PIN…');
+  const testRef = ref(db, `/family/${entered}/members`);
+  onValue(testRef, (snap) => {
+    hideSyncBanner();
+    // Any result (even null) means the PIN path is reachable — wrong PIN = we check below
+    // We validate by storing PIN and checking it matches a known hash pattern
+    // Simple approach: PIN is correct if it matches our hardcoded value
+    if (entered !== 'tekin5886') {
+      inp.classList.add('error');
+      errEl.textContent = 'Incorrect PIN. Please try again.';
+      setTimeout(() => inp.classList.remove('error'), 400);
+      inp.value = '';
+      return;
+    }
+    // PIN correct
+    dbPath = `/family/${entered}`;
+    if (remember) localStorage.setItem(PIN_STORAGE_KEY, entered);
+    document.getElementById('pin-screen').style.display = 'none';
+    initFirebase();
+  }, { onlyOnce: true });
+};
+
+// ── FIREBASE INIT ─────────────────────────────────
 function initFirebase() {
-  showSyncBanner('Connecting…');
-
-  onValue(ref(db, '/'), (snap) => {
+  showSyncBanner('Loading your family data…');
+  onValue(ref(db, dbPath), (snap) => {
     const data = snap.val() || {};
     state.members = data.members || {};
     state.events  = data.events  || {};
     state.lists   = data.lists   || {};
 
-    // Seed default data if brand new database
-    if (members().length === 0) {
-      seedDefaults();
-      return;
-    }
+    if (members().length === 0) { seedDefaults(); return; }
 
-    fbReady = true;
     hideSyncBanner();
     setSyncStatus('live');
     renderAuth();
     if (currentUser && state.members[currentUser]) {
       switchToApp();
     } else if (currentUser) {
-      // user was deleted
       currentUser = null;
       localStorage.removeItem('fp_user');
     }
     scheduleNotifications();
-    if (fbReady && currentUser) showPage(currentPage);
+    if (currentUser) showPage(currentPage);
   }, (err) => {
     console.error(err);
     setSyncStatus('offline');
-    showSyncBanner('Could not connect to Firebase');
+    showSyncBanner('Connection lost — retrying…');
   });
 }
 
 function seedDefaults() {
   const defaults = {
     members: {
-      m1:{ id:'m1', name:'Mum',  role:'Parent',    color:'#4f46e5' },
-      m2:{ id:'m2', name:'Dad',  role:'Parent',    color:'#30a46c' },
-      m3:{ id:'m3', name:'John', role:'Child',     color:'#e5484d' },
-      m4:{ id:'m4', name:'Emma', role:'Teenager',  color:'#f76808' },
+      m1:{id:'m1',name:'Mum', role:'Parent',   color:'#4f46e5'},
+      m2:{id:'m2',name:'Dad', role:'Parent',   color:'#30a46c'},
+      m3:{id:'m3',name:'John',role:'Child',    color:'#e5484d'},
+      m4:{id:'m4',name:'Emma',role:'Teenager', color:'#f76808'},
     },
     events: {
-      e1:{ id:'e1', title:"John's Gym Workout",  date:todayStr(), start:'07:00', end:'08:00', memberId:'m3', repeat:'weekly',  notify:true, notes:'' },
-      e2:{ id:'e2', title:"Emma's Piano Lesson", date:todayStr(), start:'16:00', end:'17:00', memberId:'m4', repeat:'weekly',  notify:true, notes:'' },
-      e3:{ id:'e3', title:"Family Dinner",       date:todayStr(), start:'18:30', end:'19:30', memberId:'m1', repeat:'daily',   notify:true, notes:'' },
+      e1:{id:'e1',title:"John's Gym Workout", date:todayStr(),start:'07:00',end:'08:00',memberId:'m3',repeat:'weekly', notify:true,notes:''},
+      e2:{id:'e2',title:"Emma's Piano Lesson",date:todayStr(),start:'16:00',end:'17:00',memberId:'m4',repeat:'weekly', notify:true,notes:''},
+      e3:{id:'e3',title:"Family Dinner",      date:todayStr(),start:'18:30',end:'19:30',memberId:'m1',repeat:'daily',  notify:true,notes:''},
     },
     lists: {
-      l1:{ id:'l1', name:'Shopping', items:{ i1:{id:'i1',text:'Milk',done:false}, i2:{id:'i2',text:'Bread',done:false}, i3:{id:'i3',text:'Eggs',done:true} } },
-      l2:{ id:'l2', name:'Chores',   items:{ i4:{id:'i4',text:'Vacuum living room',done:false}, i5:{id:'i5',text:'Take out bins',done:false} } },
+      l1:{id:'l1',name:'Shopping',items:{i1:{id:'i1',text:'Milk',done:false},i2:{id:'i2',text:'Bread',done:false},i3:{id:'i3',text:'Eggs',done:true}}},
+      l2:{id:'l2',name:'Chores',  items:{i4:{id:'i4',text:'Vacuum living room',done:false},i5:{id:'i5',text:'Take out bins',done:false}}},
     }
   };
-  set(ref(db, '/'), defaults);
+  set(ref(db, dbPath), defaults);
 }
 
 // ── FIREBASE WRITE HELPERS ───────────────────────
-function fbSet(path, value) {
-  setSyncStatus('syncing');
-  return set(ref(db, path), value).then(() => setSyncStatus('live'));
-}
-function fbRemove(path) {
-  setSyncStatus('syncing');
-  return remove(ref(db, path)).then(() => setSyncStatus('live'));
-}
-function fbUpdate(path, value) {
-  setSyncStatus('syncing');
-  return update(ref(db, path), value).then(() => setSyncStatus('live'));
-}
-
-// ── SYNC BANNER ──────────────────────────────────
-function showSyncBanner(msg) {
-  const b = document.getElementById('sync-banner');
-  document.getElementById('sync-msg').textContent = msg;
-  b.classList.add('show');
-}
-function hideSyncBanner() {
-  document.getElementById('sync-banner').classList.remove('show');
-}
+function fbSet(path, value)    { setSyncStatus('syncing'); return set(ref(db, dbPath+path), value).then(()=>setSyncStatus('live')); }
+function fbRemove(path)        { setSyncStatus('syncing'); return remove(ref(db, dbPath+path)).then(()=>setSyncStatus('live')); }
+function fbUpdate(path, value) { setSyncStatus('syncing'); return update(ref(db, dbPath+path), value).then(()=>setSyncStatus('live')); }
 
 // ── NOTIFICATIONS ────────────────────────────────
 function scheduleNotifications() {
-  notifTimers.forEach(clearTimeout);
-  notifTimers = [];
-  const today = todayStr();
-  const now   = new Date();
+  notifTimers.forEach(clearTimeout); notifTimers = [];
+  const today = todayStr(), now = new Date();
   events().forEach(ev => {
     if (!ev.notify || !ev.start) return;
-    if (!getEventDates(ev, today).includes(today)) return;
+    if (!getEventDates(ev,today).includes(today)) return;
     const [h,m] = ev.start.split(':').map(Number);
     const evTime = new Date(); evTime.setHours(h,m,0,0);
     const ms = evTime - now;
     if (ms < 0 || ms > 86400000) return;
     const member = state.members[ev.memberId];
     const msg = member ? `🔔 It's time for ${member.name}'s ${ev.title}` : `🔔 ${ev.title}`;
-    const t = setTimeout(() => showToast(msg, member?.color||'#4f46e5'), ms);
-    notifTimers.push(t);
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const nt = setTimeout(() => new Notification('Family Planner',{body:msg,icon:'icon-192.png'}), ms);
-      notifTimers.push(nt);
+    notifTimers.push(setTimeout(()=>showToast(msg, member?.color||'#4f46e5'), ms));
+    if ('Notification' in window && Notification.permission==='granted') {
+      notifTimers.push(setTimeout(()=>new Notification('Family Planner',{body:msg,icon:'icon-192.png'}), ms));
     }
   });
 }
-
 function getEventDates(ev, refDate) {
-  const base = new Date(ev.date);
-  const ref  = new Date(refDate);
-  const diff = Math.round((ref - base) / 86400000);
-  if (diff < 0) return [ev.date];
-  if (ev.repeat === 'daily')    return [refDate];
-  if (ev.repeat === 'weekly'   && diff % 7  === 0) return [refDate];
-  if (ev.repeat === 'biweekly' && diff % 14 === 0) return [refDate];
-  if (ev.repeat === 'monthly'  && base.getDate() === ref.getDate()) return [refDate];
+  const base=new Date(ev.date), ref=new Date(refDate);
+  const diff=Math.round((ref-base)/86400000);
+  if (diff<0) return [ev.date];
+  if (ev.repeat==='daily')                    return [refDate];
+  if (ev.repeat==='weekly'   && diff%7===0)   return [refDate];
+  if (ev.repeat==='biweekly' && diff%14===0)  return [refDate];
+  if (ev.repeat==='monthly'  && base.getDate()===ref.getDate()) return [refDate];
   return [ev.date];
 }
-
-function getEventsForDate(dateStr) {
-  return events().filter(ev => getEventDates(ev,dateStr).includes(dateStr))
-                 .sort((a,b) => (a.start||'').localeCompare(b.start||''));
+function getEventsForDate(ds) {
+  return events().filter(ev=>getEventDates(ev,ds).includes(ds)).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
 }
-
 function requestNotifPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().then(() => scheduleNotifications());
+  if ('Notification' in window && Notification.permission==='default') {
+    Notification.requestPermission().then(()=>scheduleNotifications());
   }
 }
 
@@ -468,15 +519,12 @@ function renderAuth() {
   const list = document.getElementById('member-login-list');
   if (!list) return;
   const ms = members();
-  if (ms.length === 0) {
-    list.innerHTML = '<div class="auth-loading">No family members yet.</div>';
-    return;
-  }
-  list.innerHTML = ms.map(m => `
-    <button class="member-btn" onclick="window._login('${m.id}')">
-      <div class="member-avatar" style="background:${m.color}">${m.name[0]}</div>
-      <div><div style="font-weight:600">${m.name}</div><div class="member-role">${m.role}</div></div>
-    </button>`).join('');
+  list.innerHTML = ms.length===0
+    ? '<div class="auth-loading">No family members yet.</div>'
+    : ms.map(m=>`<button class="member-btn" onclick="window._login('${m.id}')">
+        <div class="member-avatar" style="background:${m.color}">${m.name[0]}</div>
+        <div><div style="font-weight:600">${m.name}</div><div class="member-role">${m.role}</div></div>
+      </button>`).join('');
 }
 window._login = function(memberId) {
   currentUser = memberId;
@@ -485,14 +533,12 @@ window._login = function(memberId) {
   requestNotifPermission();
   scheduleNotifications();
 };
-
 function switchToApp() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   updateTopbar();
   showPage('today');
 }
-
 function logout() {
   currentUser = null;
   localStorage.removeItem('fp_user');
@@ -501,22 +547,18 @@ function logout() {
   renderAuth();
 }
 window.logout = logout;
-
 function updateTopbar() {
-  const u = state.members[currentUser];
-  if (!u) return;
+  const u = state.members[currentUser]; if (!u) return;
   document.getElementById('topbar-name').textContent = u.name;
   const av = document.getElementById('topbar-avatar');
-  av.textContent = u.name[0];
-  av.style.background = u.color;
+  av.textContent = u.name[0]; av.style.background = u.color;
 }
 
 // ── NAVIGATION ───────────────────────────────────
 function showPage(page) {
   currentPage = page;
-  ['today','calendar','lists','members'].forEach(p => {
-    document.getElementById(`nav-${p}`)?.classList.toggle('active', p===page);
-  });
+  ['today','calendar','lists','members'].forEach(p =>
+    document.getElementById(`nav-${p}`)?.classList.toggle('active', p===page));
   document.getElementById('fab').style.display = (page==='lists'||page==='members') ? 'none' : 'flex';
   const content = document.getElementById('page-content');
   if (page==='today')    renderToday(content);
@@ -528,47 +570,35 @@ window.showPage = showPage;
 
 // ── TODAY ────────────────────────────────────────
 function renderToday(el) {
-  const now = new Date();
-  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const user = state.members[currentUser];
-  const todayEvents = getEventsForDate(todayStr());
-  let html = `<div class="today-greeting"><h2>Hello, ${user?.name||'there'} 👋</h2><p>${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}</p></div>`;
-
-  html += `<div class="section-label">Today's events</div>`;
-  if (todayEvents.length === 0) {
-    html += `<div class="empty-state"><div class="emoji">🗓️</div>Nothing on today — enjoy the peace!</div>`;
+  const now=new Date();
+  const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const user=state.members[currentUser];
+  const todayEvents=getEventsForDate(todayStr());
+  let html=`<div class="today-greeting"><h2>Hello, ${user?.name||'there'} 👋</h2><p>${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}</p></div>`;
+  html+=`<div class="section-label">Today's events</div>`;
+  if (todayEvents.length===0) {
+    html+=`<div class="empty-state"><div class="emoji">🗓️</div>Nothing on today — enjoy the peace!</div>`;
   } else {
-    html += `<div class="timeline">`;
-    todayEvents.forEach(ev => {
-      const m = state.members[ev.memberId];
-      html += `<div class="timeline-event">
-        <div class="tl-time">${ev.start||'—'}</div>
-        <div class="tl-bar" style="background:${m?.color||'#ccc'}"></div>
-        <div class="tl-info"><div class="tl-title">${ev.title}</div>
-          <div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''} · ${ev.repeat!=='none'?'🔁 '+ev.repeat:'one-off'}${ev.notify?' · 🔔':''}</div>
-        </div></div>`;
+    html+=`<div class="timeline">`;
+    todayEvents.forEach(ev=>{
+      const m=state.members[ev.memberId];
+      html+=`<div class="timeline-event"><div class="tl-time">${ev.start||'—'}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''} · ${ev.repeat!=='none'?'🔁 '+ev.repeat:'one-off'}${ev.notify?' · 🔔':''}</div></div></div>`;
     });
-    html += `</div>`;
+    html+=`</div>`;
   }
-
-  const upcoming = [];
-  for (let i=1;i<=7;i++) {
+  const upcoming=[];
+  for(let i=1;i<=7;i++){
     const d=new Date(); d.setDate(d.getDate()+i);
     const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     getEventsForDate(ds).forEach(ev=>upcoming.push({...ev,_date:ds,_d:d}));
   }
-  if (upcoming.length>0) {
+  if(upcoming.length>0){
     html+=`<div class="section-label">Coming up</div><div class="timeline">`;
     upcoming.slice(0,5).forEach(ev=>{
       const m=state.members[ev.memberId];
       const dl=ev._d.toLocaleDateString('en-GB',{weekday:'short',month:'short',day:'numeric'});
-      html+=`<div class="timeline-event">
-        <div class="tl-time" style="font-size:.74rem">${dl}</div>
-        <div class="tl-bar" style="background:${m?.color||'#ccc'}"></div>
-        <div class="tl-info"><div class="tl-title">${ev.title}</div>
-          <div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.start?' · '+ev.start:''}</div>
-        </div></div>`;
+      html+=`<div class="timeline-event"><div class="tl-time" style="font-size:.74rem">${dl}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.start?' · '+ev.start:''}</div></div></div>`;
     });
     html+=`</div>`;
   }
@@ -582,19 +612,14 @@ function renderCalendar(el) {
   const firstDay=new Date(calYear,calMonth,1).getDay();
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
   const daysInPrev=new Date(calYear,calMonth,0).getDate();
-  let html=`<div class="month-header"><h2>${MONTHS[calMonth]} ${calYear}</h2>
-    <div class="month-nav">
-      <button class="icon-btn" onclick="window._changeMonth(-1)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
-      <button class="icon-btn" onclick="window._changeMonth(1)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
-    </div></div>
-  <div class="cal-grid">
-    ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-day-label">${d}</div>`).join('')}`;
-
+  let html=`<div class="month-header"><h2>${MONTHS[calMonth]} ${calYear}</h2><div class="month-nav">
+    <button class="icon-btn" onclick="window._changeMonth(-1)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
+    <button class="icon-btn" onclick="window._changeMonth(1)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+  </div></div><div class="cal-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-day-label">${d}</div>`).join('')}`;
   let cells=[];
   for(let i=firstDay-1;i>=0;i--) cells.push({d:daysInPrev-i,cur:false});
   for(let i=1;i<=daysInMonth;i++) cells.push({d:i,cur:true});
   while(cells.length%7!==0) cells.push({d:cells.length-daysInMonth-firstDay+1,cur:false});
-
   cells.forEach(cell=>{
     const ds=cell.cur?`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`:null;
     const isToday=ds===today, isSel=ds===selectedDate;
@@ -603,27 +628,15 @@ function renderCalendar(el) {
     html+=`<div class="cal-cell ${!cell.cur?'other-month':''} ${isToday?'today':''} ${isSel?'selected':''}" ${ds?`onclick="window._selectDate('${ds}')"`:''}><div class="cal-date">${cell.d}</div><div class="cal-dots">${dots}</div></div>`;
   });
   html+=`</div>`;
-
   const selEvents=getEventsForDate(selectedDate);
   const selObj=new Date(selectedDate+'T00:00:00');
-  const dayLabel=selObj.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  html+=`<div class="day-panel"><h3>${dayLabel}</h3>`;
+  html+=`<div class="day-panel"><h3>${selObj.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</h3>`;
   if(selEvents.length===0){
     html+=`<div class="empty-state" style="padding:20px 0"><div class="emoji">✨</div>No events</div>`;
   } else {
     selEvents.forEach(ev=>{
       const m=state.members[ev.memberId];
-      html+=`<div class="event-item">
-        <div class="event-color-bar" style="background:${m?.color||'#ccc'}"></div>
-        <div class="event-info"><div class="event-title">${ev.title}</div>
-          <div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${ev.repeat!=='none'?'· 🔁 '+ev.repeat:''}</div>
-          <div class="event-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.notify?' · 🔔':''}</div>
-          ${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}
-        </div>
-        <div class="event-actions">
-          <button class="small-btn" onclick="window._editEvent('${ev.id}')">Edit</button>
-          <button class="small-btn danger" onclick="window._deleteEvent('${ev.id}')">✕</button>
-        </div></div>`;
+      html+=`<div class="event-item"><div class="event-color-bar" style="background:${m?.color||'#ccc'}"></div><div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${ev.repeat!=='none'?'· 🔁 '+ev.repeat:''}</div><div class="event-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.notify?' · 🔔':''}</div>${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}</div><div class="event-actions"><button class="small-btn" onclick="window._editEvent('${ev.id}')">Edit</button><button class="small-btn danger" onclick="window._deleteEvent('${ev.id}')">✕</button></div></div>`;
     });
   }
   html+=`<button class="add-event-btn" onclick="window._openAddModal('${selectedDate}')">+ Add event on this day</button></div>`;
@@ -637,97 +650,34 @@ function renderLists(el) {
   let html=`<div class="lists-grid">`;
   lists().forEach(list=>{
     const items=Object.values(list.items||{});
-    html+=`<div class="list-card">
-      <div class="list-card-header"><h3>${list.name}</h3>
-        <button class="small-btn danger" onclick="window._deleteList('${list.id}')">Delete</button>
-      </div>
-      <div class="list-items">
-        ${items.map(item=>`
-          <div class="list-item" id="item-${item.id}">
-            <input type="checkbox" ${item.done?'checked':''} onchange="window._toggleItem('${list.id}','${item.id}',this.checked)" />
-            <span class="list-item-text ${item.done?'done':''}">${item.text}</span>
-            <button class="list-item-del" onclick="window._deleteItem('${list.id}','${item.id}')">✕</button>
-          </div>`).join('')}
-      </div>
-      <div class="list-add-row">
-        <input type="text" id="new-item-${list.id}" placeholder="Add item…" onkeydown="if(event.key==='Enter')window._addItem('${list.id}')" />
-        <button onclick="window._addItem('${list.id}')">Add</button>
-      </div>
-    </div>`;
+    html+=`<div class="list-card"><div class="list-card-header"><h3>${list.name}</h3><button class="small-btn danger" onclick="window._deleteList('${list.id}')">Delete</button></div><div class="list-items">${items.map(item=>`<div class="list-item" id="item-${item.id}"><input type="checkbox" ${item.done?'checked':''} onchange="window._toggleItem('${list.id}','${item.id}',this.checked)" /><span class="list-item-text ${item.done?'done':''}">${item.text}</span><button class="list-item-del" onclick="window._deleteItem('${list.id}','${item.id}')">✕</button></div>`).join('')}</div><div class="list-add-row"><input type="text" id="new-item-${list.id}" placeholder="Add item…" onkeydown="if(event.key==='Enter')window._addItem('${list.id}')" /><button onclick="window._addItem('${list.id}')">Add</button></div></div>`;
   });
   html+=`<button class="new-list-btn" onclick="openModal('list-modal')">+ New list</button></div>`;
   el.innerHTML=html;
 }
 window._toggleItem=function(listId,itemId,done){ fbUpdate(`/lists/${listId}/items/${itemId}`,{done}); };
-window._addItem=function(listId){
-  const inp=document.getElementById(`new-item-${listId}`);
-  const text=inp.value.trim(); if(!text) return;
-  const id=uid();
-  fbSet(`/lists/${listId}/items/${id}`,{id,text,done:false});
-  inp.value='';
-};
+window._addItem=function(listId){ const inp=document.getElementById(`new-item-${listId}`); const text=inp.value.trim(); if(!text) return; const id=uid(); fbSet(`/lists/${listId}/items/${id}`,{id,text,done:false}); inp.value=''; };
 window._deleteItem=function(listId,itemId){ fbRemove(`/lists/${listId}/items/${itemId}`); };
 window._deleteList=function(listId){ if(!confirm('Delete this list?')) return; fbRemove(`/lists/${listId}`); };
-function saveList(){
-  const name=document.getElementById('list-name-input').value.trim();
-  if(!name) return;
-  const id=uid();
-  fbSet(`/lists/${id}`,{id,name,items:{}});
-  closeModal('list-modal');
-}
+function saveList(){ const name=document.getElementById('list-name-input').value.trim(); if(!name) return; const id=uid(); fbSet(`/lists/${id}`,{id,name,items:{}}); closeModal('list-modal'); }
 window.saveList=saveList;
 
 // ── MEMBERS ──────────────────────────────────────
 function renderMembers(el) {
   let html=`<div class="members-grid">`;
   members().forEach(m=>{
-    html+=`<div class="member-card">
-      <div class="member-card-avatar" style="background:${m.color}">${m.name[0]}</div>
-      <div class="member-card-info"><h3>${m.name}</h3><p>${m.role}</p></div>
-      <div class="member-card-actions">
-        ${COLORS.map(c=>`<div class="color-swatch" style="background:${c};border-color:${m.color===c?'#000':'transparent'}" onclick="window._changeMemberColor('${m.id}','${c}')"></div>`).join('')}
-        <button class="small-btn danger" onclick="window._deleteMember('${m.id}')">✕</button>
-      </div></div>`;
+    html+=`<div class="member-card"><div class="member-card-avatar" style="background:${m.color}">${m.name[0]}</div><div class="member-card-info"><h3>${m.name}</h3><p>${m.role}</p></div><div class="member-card-actions">${COLORS.map(c=>`<div class="color-swatch" style="background:${c};border-color:${m.color===c?'#000':'transparent'}" onclick="window._changeMemberColor('${m.id}','${c}')"></div>`).join('')}<button class="small-btn danger" onclick="window._deleteMember('${m.id}')">✕</button></div></div>`;
   });
-  html+=`<div class="add-member-card"><h3>Add family member</h3>
-    <div class="field-row"><label>Name</label><input type="text" id="new-name" placeholder="Name" /></div>
-    <div class="field-row"><label>Role</label>
-      <select class="role-select" id="new-role">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select>
-    </div>
-    <div class="field-row"><label>Colour</label>
-      <div class="color-picker-row" id="new-color-picker">
-        ${COLORS.map((c,i)=>`<div class="color-swatch" id="nc-${i}" style="background:${c};border-color:${i===0?'#000':'transparent'}" onclick="window._selectNewColor(${i},'${c}')"></div>`).join('')}
-      </div>
-    </div>
-    <button class="save-btn" onclick="window._addMember()">Add member</button>
-  </div></div>`;
-  el.innerHTML=html;
-  newMemberColor=COLORS[0];
+  html+=`<div class="add-member-card"><h3>Add family member</h3><div class="field-row"><label>Name</label><input type="text" id="new-name" placeholder="Name" /></div><div class="field-row"><label>Role</label><select class="role-select" id="new-role">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div><div class="field-row"><label>Colour</label><div class="color-picker-row" id="new-color-picker">${COLORS.map((c,i)=>`<div class="color-swatch" id="nc-${i}" style="background:${c};border-color:${i===0?'#000':'transparent'}" onclick="window._selectNewColor(${i},'${c}')"></div>`).join('')}</div></div><button class="save-btn" onclick="window._addMember()">Add member</button></div></div>`;
+  el.innerHTML=html; newMemberColor=COLORS[0];
 }
-window._selectNewColor=function(i,c){
-  newMemberColor=c;
-  COLORS.forEach((_,j)=>{ const sw=document.getElementById(`nc-${j}`); if(sw) sw.style.borderColor=j===i?'#000':'transparent'; });
-};
-window._addMember=function(){
-  const name=document.getElementById('new-name').value.trim();
-  const role=document.getElementById('new-role').value;
-  if(!name){ showToast('Please enter a name','#e5484d'); return; }
-  const id=uid();
-  fbSet(`/members/${id}`,{id,name,role,color:newMemberColor});
-  showToast(`${name} added to the family! 🎉`, newMemberColor);
-};
+window._selectNewColor=function(i,c){ newMemberColor=c; COLORS.forEach((_,j)=>{ const sw=document.getElementById(`nc-${j}`); if(sw) sw.style.borderColor=j===i?'#000':'transparent'; }); };
+window._addMember=function(){ const name=document.getElementById('new-name').value.trim(); const role=document.getElementById('new-role').value; if(!name){ showToast('Please enter a name','#e5484d'); return; } const id=uid(); fbSet(`/members/${id}`,{id,name,role,color:newMemberColor}); showToast(`${name} added to the family! 🎉`, newMemberColor); };
 window._changeMemberColor=function(memberId,color){ fbUpdate(`/members/${memberId}`,{color}); };
-window._deleteMember=function(memberId){
-  const m=state.members[memberId]; if(!m) return;
-  if(!confirm(`Remove ${m.name} from the family?`)) return;
-  fbRemove(`/members/${memberId}`);
-};
+window._deleteMember=function(memberId){ const m=state.members[memberId]; if(!m) return; if(!confirm(`Remove ${m.name} from the family?`)) return; fbRemove(`/members/${memberId}`); };
 
 // ── EVENTS ───────────────────────────────────────
-function populateMemberSelect(){
-  const sel=document.getElementById('ev-member');
-  sel.innerHTML=members().map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
-}
+function populateMemberSelect(){ document.getElementById('ev-member').innerHTML=members().map(m=>`<option value="${m.id}">${m.name}</option>`).join(''); }
 function openAddModal(dateStr){
   document.getElementById('modal-title').textContent='New Event';
   document.getElementById('edit-event-id').value='';
@@ -738,12 +688,9 @@ function openAddModal(dateStr){
   document.getElementById('ev-notes').value='';
   document.getElementById('ev-repeat').value='none';
   document.getElementById('ev-notify').checked=true;
-  populateMemberSelect();
-  openModal('event-modal');
+  populateMemberSelect(); openModal('event-modal');
 }
-window.openAddModal=openAddModal;
-window._openAddModal=openAddModal;
-
+window.openAddModal=openAddModal; window._openAddModal=openAddModal;
 window._editEvent=function(eventId){
   const ev=state.events[eventId]; if(!ev) return;
   document.getElementById('modal-title').textContent='Edit Event';
@@ -755,45 +702,28 @@ window._editEvent=function(eventId){
   document.getElementById('ev-notes').value=ev.notes||'';
   document.getElementById('ev-repeat').value=ev.repeat||'none';
   document.getElementById('ev-notify').checked=ev.notify!==false;
-  populateMemberSelect();
-  document.getElementById('ev-member').value=ev.memberId;
+  populateMemberSelect(); document.getElementById('ev-member').value=ev.memberId;
   openModal('event-modal');
 };
-
 function saveEvent(){
   const title=document.getElementById('ev-title').value.trim();
   const date=document.getElementById('ev-date').value;
-  const start=document.getElementById('ev-start').value;
-  const end=document.getElementById('ev-end').value;
-  const memberId=document.getElementById('ev-member').value;
-  const notes=document.getElementById('ev-notes').value.trim();
-  const repeat=document.getElementById('ev-repeat').value;
-  const notify=document.getElementById('ev-notify').checked;
-  const editId=document.getElementById('edit-event-id').value;
   if(!title){ showToast('Please enter an event name','#e5484d'); return; }
   if(!date){  showToast('Please choose a date','#e5484d'); return; }
-  const id=editId||uid();
-  fbSet(`/events/${id}`,{id,title,date,start,end,memberId,notes,repeat,notify});
+  const id=document.getElementById('edit-event-id').value||uid();
+  fbSet(`/events/${id}`,{id,title,date,start:document.getElementById('ev-start').value,end:document.getElementById('ev-end').value,memberId:document.getElementById('ev-member').value,notes:document.getElementById('ev-notes').value.trim(),repeat:document.getElementById('ev-repeat').value,notify:document.getElementById('ev-notify').checked});
   closeModal('event-modal');
-  const member=state.members[memberId];
+  const member=state.members[document.getElementById('ev-member').value];
   showToast(`"${title}" saved for ${member?.name||''}`, member?.color||'#4f46e5');
 }
 window.saveEvent=saveEvent;
-
-window._deleteEvent=function(eventId){
-  const ev=state.events[eventId]; if(!ev) return;
-  if(!confirm(`Delete "${ev.title}"?`)) return;
-  fbRemove(`/events/${eventId}`);
-};
+window._deleteEvent=function(eventId){ const ev=state.events[eventId]; if(!ev) return; if(!confirm(`Delete "${ev.title}"?`)) return; fbRemove(`/events/${eventId}`); };
 
 // ── MODALS ───────────────────────────────────────
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-window.openModal=openModal;
-window.closeModal=closeModal;
-document.querySelectorAll('.modal-backdrop').forEach(bd=>{
-  bd.addEventListener('click',e=>{ if(e.target===bd) bd.classList.remove('open'); });
-});
+window.openModal=openModal; window.closeModal=closeModal;
+document.querySelectorAll('.modal-backdrop').forEach(bd=>bd.addEventListener('click',e=>{ if(e.target===bd) bd.classList.remove('open'); }));
 
 // ── TOAST ────────────────────────────────────────
 function showToast(msg,color){
@@ -808,8 +738,16 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 }
 
-// ── START ────────────────────────────────────────
-initFirebase();
+// ── START — check for saved PIN ──────────────────
+const savedPin = localStorage.getItem(PIN_STORAGE_KEY);
+if (savedPin === 'tekin5886') {
+  dbPath = `/family/${savedPin}`;
+  document.getElementById('pin-screen').style.display = 'none';
+  initFirebase();
+} else {
+  // Show PIN screen
+  document.getElementById('pin-screen').style.display = 'flex';
+}
 
 </script>
 </body>
