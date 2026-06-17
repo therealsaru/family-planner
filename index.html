@@ -326,6 +326,25 @@
   </div>
 </div>
 
+<!-- EDIT MEMBER MODAL -->
+<div class="modal-backdrop" id="edit-member-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Edit family member</h3>
+    <input type="hidden" id="edit-member-id" />
+    <div class="field-row"><label>Name</label><input type="text" id="edit-member-name" placeholder="Name" /></div>
+    <div class="field-row"><label>Role</label>
+      <select class="role-select" id="edit-member-role">
+        <option>Parent</option><option>Child</option><option>Teenager</option><option>Grandparent</option><option>Other</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" onclick="closeModal('edit-member-modal')">Cancel</button>
+      <button class="primary-btn" onclick="window._saveEditMember()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -671,7 +690,7 @@ window.saveList=saveList;
 function renderMembers(el) {
   let html=`<div class="members-grid">`;
   members().forEach(m=>{
-    html+=`<div class="member-card"><div class="member-card-avatar" style="background:${m.color}">${m.name[0]}</div><div class="member-card-info"><h3>${m.name}</h3><p>${m.role}</p></div><div class="member-card-actions">${COLORS.map(c=>`<div class="color-swatch" style="background:${c};border-color:${m.color===c?'#000':'transparent'}" onclick="window._changeMemberColor('${m.id}','${c}')"></div>`).join('')}<button class="small-btn danger" onclick="window._deleteMember('${m.id}')">✕</button></div></div>`;
+    html+=`<div class="member-card"><div class="member-card-avatar" style="background:${m.color}">${m.name[0]}</div><div class="member-card-info"><h3>${m.name}</h3><p>${m.role}</p></div><div class="member-card-actions">${COLORS.map(c=>`<div class="color-swatch" style="background:${c};border-color:${m.color===c?'#000':'transparent'}" onclick="window._changeMemberColor('${m.id}','${c}')"></div>`).join('')}<button class="small-btn" onclick="window._openEditMember('${m.id}')">Edit</button><button class="small-btn danger" onclick="window._deleteMember('${m.id}')">✕</button></div></div>`;
   });
   html+=`<div class="add-member-card"><h3>Add family member</h3><div class="field-row"><label>Name</label><input type="text" id="new-name" placeholder="Name" /></div><div class="field-row"><label>Role</label><select class="role-select" id="new-role">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div><div class="field-row"><label>Colour</label><div class="color-picker-row" id="new-color-picker">${COLORS.map((c,i)=>`<div class="color-swatch" id="nc-${i}" style="background:${c};border-color:${i===0?'#000':'transparent'}" onclick="window._selectNewColor(${i},'${c}')"></div>`).join('')}</div></div><button class="save-btn" onclick="window._addMember()">Add member</button></div></div>`;
   el.innerHTML=html; newMemberColor=COLORS[0];
@@ -680,6 +699,22 @@ window._selectNewColor=function(i,c){ newMemberColor=c; COLORS.forEach((_,j)=>{ 
 window._addMember=function(){ const name=document.getElementById('new-name').value.trim(); const role=document.getElementById('new-role').value; if(!name){ showToast('Please enter a name','#e5484d'); return; } const id=uid(); fbSet(`/members/${id}`,{id,name,role,color:newMemberColor}); showToast(`${name} added to the family! 🎉`, newMemberColor); };
 window._changeMemberColor=function(memberId,color){ fbUpdate(`/members/${memberId}`,{color}); };
 window._deleteMember=function(memberId){ const m=state.members[memberId]; if(!m) return; if(!confirm(`Remove ${m.name} from the family?`)) return; fbRemove(`/members/${memberId}`); };
+window._openEditMember=function(memberId){
+  const m=state.members[memberId]; if(!m) return;
+  document.getElementById('edit-member-id').value=m.id;
+  document.getElementById('edit-member-name').value=m.name;
+  document.getElementById('edit-member-role').value=m.role;
+  openModal('edit-member-modal');
+};
+window._saveEditMember=function(){
+  const id=document.getElementById('edit-member-id').value;
+  const name=document.getElementById('edit-member-name').value.trim();
+  const role=document.getElementById('edit-member-role').value;
+  if(!name){ showToast('Please enter a name','#e5484d'); return; }
+  fbUpdate(`/members/${id}`,{name,role});
+  closeModal('edit-member-modal');
+  showToast(`Profile updated!`, state.members[id]?.color||'#4f46e5');
+};
 
 // ── EVENTS ───────────────────────────────────────
 function populateMemberSelect(){ document.getElementById('ev-member').innerHTML=members().map(m=>`<option value="${m.id}">${m.name}</option>`).join(''); }
