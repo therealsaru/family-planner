@@ -1,20 +1,19 @@
-const CACHE = 'family-planner-v1';
-const ASSETS = ['./index.html', './manifest.json'];
+// Service worker — PWA install support only, no caching
+// This ensures updates deploy instantly without users needing to clear cache
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
+  // Clear ALL old caches immediately
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+  );
   self.clients.claim();
 });
 
+// Never cache — always go to network
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  e.respondWith(fetch(e.request));
 });
