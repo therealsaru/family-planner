@@ -208,6 +208,19 @@
     .fab { position:fixed; right:20px; bottom:calc(var(--nav-h) + 16px); width:52px; height:52px; border-radius:50%; background:var(--accent); color:white; border:none; box-shadow:0 4px 16px rgba(79,70,229,.4); cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:40; font-size:1.5rem; transition:transform .15s; }
     .fab:active { transform:scale(.93); }
     @media (prefers-reduced-motion:reduce) { *{transition:none!important;animation:none!important} }
+
+    /* EMOJI PICKER */
+    .emoji-picker-wrap { border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--bg); }
+    .emoji-grid { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
+    .emoji-btn { width:36px; height:36px; border-radius:8px; border:2px solid transparent; background:var(--surface); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center; transition:border-color .12s,background .12s; }
+    .emoji-btn:hover { background:var(--accent-light); }
+    .emoji-btn.selected { border-color:var(--accent); background:var(--accent-light); }
+    .emoji-selected-row { display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); padding-top:8px; }
+
+    /* MULTI-DAY event spans in calendar */
+    .cal-dot.multi { width:100%; height:4px; border-radius:2px; flex:1 0 100%; }
+    .event-emoji { font-size:1rem; margin-left:4px; }
+    .tl-emoji { font-size:1.1rem; flex-shrink:0; }
   </style>
 </head>
 <body>
@@ -297,7 +310,10 @@
     <h3 id="modal-title">New Event</h3>
     <input type="hidden" id="edit-event-id" />
     <div class="field-row"><label>Event name</label><input type="text" id="ev-title" placeholder="e.g. John's Gym Workout" /></div>
-    <div class="field-row"><label>Date</label><input type="date" id="ev-date" /></div>
+    <div class="field-row" style="display:flex;gap:10px;">
+      <div style="flex:1"><label>Start date</label><input type="date" id="ev-date" /></div>
+      <div style="flex:1"><label>End date <span style="color:var(--muted);font-weight:400">(optional)</span></label><input type="date" id="ev-end-date" /></div>
+    </div>
     <div class="field-row" style="display:flex;gap:10px;">
       <div style="flex:1"><label>Start time</label><input type="time" id="ev-start" /></div>
       <div style="flex:1"><label>End time</label><input type="time" id="ev-end" /></div>
@@ -305,13 +321,26 @@
     <div class="field-row"><label>Family member</label><select id="ev-member"></select></div>
     <div class="field-row"><label>Notes (optional)</label><textarea id="ev-notes" placeholder="Any details…"></textarea></div>
     <div class="field-row"><label>Repeat</label>
-      <select id="ev-repeat">
+      <select id="ev-repeat" onchange="window._onRepeatChange()">
         <option value="none">Does not repeat</option>
         <option value="daily">Every day</option>
         <option value="weekly">Every week</option>
         <option value="biweekly">Every 2 weeks</option>
-        <option value="monthly">Every month</option>
+        <option value="monthly">Same date every month</option>
+        <option value="monthly-nth">Same weekday every month (e.g. 2nd Tuesday)</option>
       </select>
+    </div>
+    <div id="monthly-nth-hint" style="display:none;font-size:.8rem;color:var(--muted);margin:-6px 0 10px;padding:8px 10px;background:var(--bg);border-radius:8px;"></div>
+    <div class="field-row"><label>Reaction emoji <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <div class="emoji-picker-wrap">
+        <div class="emoji-grid" id="emoji-grid"></div>
+        <div class="emoji-selected-row">
+          <span id="ev-emoji-display" style="font-size:1.4rem;min-width:28px;text-align:center;"></span>
+          <span id="ev-emoji-label" style="font-size:.8rem;color:var(--muted);">No reaction</span>
+          <button type="button" id="ev-emoji-clear" onclick="window._clearEmoji()" style="display:none;margin-left:auto;background:none;border:none;cursor:pointer;color:var(--muted);font-size:.8rem;">Clear</button>
+        </div>
+        <input type="hidden" id="ev-emoji" value="" />
+      </div>
     </div>
     <label class="checkbox-row"><input type="checkbox" id="ev-notify" checked />Send a notification when this event starts</label>
     <div class="modal-actions">
@@ -529,17 +558,35 @@ function scheduleNotifications() {
   });
 }
 function getEventDates(ev, refDate) {
-  const base=new Date(ev.date), ref=new Date(refDate);
+  const base=new Date(ev.date+'T00:00:00');
+  const ref=new Date(refDate+'T00:00:00');
   const diff=Math.round((ref-base)/86400000);
-  if (diff<0) return [ev.date];
-  if (ev.repeat==='daily')                    return [refDate];
-  if (ev.repeat==='weekly'   && diff%7===0)   return [refDate];
-  if (ev.repeat==='biweekly' && diff%14===0)  return [refDate];
-  if (ev.repeat==='monthly'  && base.getDate()===ref.getDate()) return [refDate];
-  return [ev.date];
+  if (diff<0) return [];
+
+  // Multi-day span: event covers start date through endDate
+  if (ev.endDate) {
+    const end=new Date(ev.endDate+'T00:00:00');
+    if (ref >= base && ref <= end) return [refDate];
+    return [];
+  }
+
+  // Repeat logic
+  if (!ev.repeat || ev.repeat==='none') return diff===0 ? [refDate] : [];
+  if (ev.repeat==='daily')              return [refDate];
+  if (ev.repeat==='weekly'  && diff%7===0)   return [refDate];
+  if (ev.repeat==='biweekly'&& diff%14===0)  return [refDate];
+  if (ev.repeat==='monthly') {
+    return base.getDate()===ref.getDate() ? [refDate] : [];
+  }
+  if (ev.repeat==='monthly-nth') {
+    const orig=getNthWeekdayOfMonth(ev.date);
+    const cur=getNthWeekdayOfMonth(refDate);
+    return (orig.n===cur.n && orig.weekday===cur.weekday) ? [refDate] : [];
+  }
+  return diff===0 ? [refDate] : [];
 }
 function getEventsForDate(ds) {
-  return events().filter(ev=>getEventDates(ev,ds).includes(ds)).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  return events().filter(ev=>getEventDates(ev,ds).length>0).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
 }
 function requestNotifPermission() {
   if ('Notification' in window && Notification.permission==='default') {
@@ -616,7 +663,19 @@ function renderToday(el) {
     html+=`<div class="timeline">`;
     todayEvents.forEach(ev=>{
       const m=state.members[ev.memberId];
-      html+=`<div class="timeline-event"><div class="tl-time">${ev.start||'—'}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''} · ${ev.repeat!=='none'?'🔁 '+ev.repeat:'one-off'}${ev.notify?' · 🔔':''}</div></div></div>`;
+      const isMulti=ev.endDate && ev.endDate!==ev.date;
+      const repeatLabel=ev.repeat&&ev.repeat!=='none'?'🔁 '+ev.repeat:'one-off';
+      const reactions=ev.reactions?Object.values(ev.reactions):[];
+      const reactionHtml=renderReactions(ev.id, reactions);
+      html+=`<div class="timeline-event" style="flex-wrap:wrap;">
+        <div class="tl-time">${ev.start||'—'}</div>
+        <div class="tl-bar" style="background:${m?.color||'#ccc'}"></div>
+        <div class="tl-info" style="flex:1">
+          <div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">multi-day</span>`:''}</div>
+          <div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''} · ${repeatLabel}${ev.notify?' · 🔔':''}</div>
+        </div>
+        <div style="width:100%;padding-left:56px;margin-top:6px;">${reactionHtml}</div>
+      </div>`;
     });
     html+=`</div>`;
   }
@@ -631,7 +690,7 @@ function renderToday(el) {
     upcoming.slice(0,5).forEach(ev=>{
       const m=state.members[ev.memberId];
       const dl=ev._d.toLocaleDateString('en-GB',{weekday:'short',month:'short',day:'numeric'});
-      html+=`<div class="timeline-event"><div class="tl-time" style="font-size:.74rem">${dl}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.start?' · '+ev.start:''}</div></div></div>`;
+      html+=`<div class="timeline-event"><div class="tl-time" style="font-size:.74rem">${dl}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.start?' · '+ev.start:''}</div></div></div>`;
     });
     html+=`</div>`;
   }
@@ -669,7 +728,25 @@ function renderCalendar(el) {
   } else {
     selEvents.forEach(ev=>{
       const m=state.members[ev.memberId];
-      html+=`<div class="event-item"><div class="event-color-bar" style="background:${m?.color||'#ccc'}"></div><div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${ev.repeat!=='none'?'· 🔁 '+ev.repeat:''}</div><div class="event-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.notify?' · 🔔':''}</div>${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}</div><div class="event-actions"><button class="small-btn" onclick="window._editEvent('${ev.id}')">Edit</button><button class="small-btn danger" onclick="window._deleteEvent('${ev.id}')">✕</button></div></div>`;
+      const isMulti=ev.endDate&&ev.endDate!==ev.date;
+      const multiLabel=isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">until ${ev.endDate}</span>`:'';
+      const reactions=ev.reactions?Object.values(ev.reactions):[];
+      const reactionHtml=renderReactions(ev.id, reactions);
+      const repeatDisp=ev.repeat==='monthly-nth'?`🔁 ${describeNth(ev.date)}`:ev.repeat!=='none'?'🔁 '+ev.repeat:'';
+      html+=`<div class="event-item">
+        <div class="event-color-bar" style="background:${m?.color||'#ccc'}"></div>
+        <div class="event-info">
+          <div class="event-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${multiLabel}</div>
+          <div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${repeatDisp}</div>
+          <div class="event-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.notify?' · 🔔':''}</div>
+          ${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}
+          <div style="margin-top:8px">${reactionHtml}</div>
+        </div>
+        <div class="event-actions">
+          <button class="small-btn" onclick="window._editEvent('${ev.id}')">Edit</button>
+          <button class="small-btn danger" onclick="window._deleteEvent('${ev.id}')">✕</button>
+        </div>
+      </div>`;
     });
   }
   html+=`<button class="add-event-btn" onclick="window._openAddModal('${selectedDate}')">+ Add event on this day</button></div>`;
@@ -752,16 +829,71 @@ window._saveEditMember=function(){
 
 // ── EVENTS ───────────────────────────────────────
 function populateMemberSelect(){ document.getElementById('ev-member').innerHTML=members().map(m=>`<option value="${m.id}">${m.name}</option>`).join(''); }
+// ── EMOJI PICKER ─────────────────────────────────
+const REACTION_EMOJIS = ['🎉','🎂','⚽','🏊','🎵','🏥','✈️','🛒','🏫','💼','🎨','🍕','🏋️','🎮','📚','🌟','❤️','🔧','🌿','🎤','🚗','👨‍👩‍👧','🎁','🏖️','💊','🤝','📅','🍽️','🎯','⚡'];
+function buildEmojiGrid(selectedEmoji) {
+  const grid = document.getElementById('emoji-grid');
+  if (!grid) return;
+  grid.innerHTML = REACTION_EMOJIS.map(e =>
+    `<button type="button" class="emoji-btn${e===selectedEmoji?' selected':''}" onclick="window._selectEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+window._selectEmoji = function(e) {
+  document.getElementById('ev-emoji').value = e;
+  document.getElementById('ev-emoji-display').textContent = e;
+  document.getElementById('ev-emoji-label').textContent = 'Selected';
+  document.getElementById('ev-emoji-clear').style.display = 'inline';
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.toggle('selected', b.textContent===e));
+};
+window._clearEmoji = function() {
+  document.getElementById('ev-emoji').value = '';
+  document.getElementById('ev-emoji-display').textContent = '';
+  document.getElementById('ev-emoji-label').textContent = 'No reaction';
+  document.getElementById('ev-emoji-clear').style.display = 'none';
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+};
+
+// ── NTH WEEKDAY HELPERS ──────────────────────────
+function getNthWeekdayOfMonth(date) {
+  // Returns e.g. {n:2, weekday:1} = 2nd Monday
+  const d = new Date(date + 'T00:00:00');
+  const weekday = d.getDay(); // 0=Sun
+  const n = Math.ceil(d.getDate() / 7);
+  return { n, weekday };
+}
+const WEEKDAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const ORD = ['','1st','2nd','3rd','4th','5th'];
+function describeNth(dateStr) {
+  const { n, weekday } = getNthWeekdayOfMonth(dateStr);
+  return `${ORD[n]} ${WEEKDAY_NAMES[weekday]} of every month`;
+}
+
+window._onRepeatChange = function() {
+  const val = document.getElementById('ev-repeat').value;
+  const hint = document.getElementById('monthly-nth-hint');
+  const dateVal = document.getElementById('ev-date').value;
+  if (val === 'monthly-nth' && dateVal) {
+    hint.style.display = 'block';
+    hint.textContent = '📅 Repeats on the ' + describeNth(dateVal);
+  } else {
+    hint.style.display = 'none';
+  }
+};
+
 function openAddModal(dateStr){
   document.getElementById('modal-title').textContent='New Event';
   document.getElementById('edit-event-id').value='';
   document.getElementById('ev-title').value='';
   document.getElementById('ev-date').value=dateStr||selectedDate||todayStr();
+  document.getElementById('ev-end-date').value='';
   document.getElementById('ev-start').value='09:00';
   document.getElementById('ev-end').value='10:00';
   document.getElementById('ev-notes').value='';
   document.getElementById('ev-repeat').value='none';
   document.getElementById('ev-notify').checked=true;
+  document.getElementById('monthly-nth-hint').style.display='none';
+  window._clearEmoji();
+  buildEmojiGrid('');
   populateMemberSelect(); openModal('event-modal');
 }
 window.openAddModal=openAddModal; window._openAddModal=openAddModal;
@@ -771,11 +903,25 @@ window._editEvent=function(eventId){
   document.getElementById('edit-event-id').value=ev.id;
   document.getElementById('ev-title').value=ev.title;
   document.getElementById('ev-date').value=ev.date;
+  document.getElementById('ev-end-date').value=ev.endDate||'';
   document.getElementById('ev-start').value=ev.start||'';
   document.getElementById('ev-end').value=ev.end||'';
   document.getElementById('ev-notes').value=ev.notes||'';
   document.getElementById('ev-repeat').value=ev.repeat||'none';
   document.getElementById('ev-notify').checked=ev.notify!==false;
+  // nth hint
+  const hint = document.getElementById('monthly-nth-hint');
+  if ((ev.repeat||'none')==='monthly-nth' && ev.date) {
+    hint.style.display='block';
+    hint.textContent='📅 Repeats on the '+describeNth(ev.date);
+  } else { hint.style.display='none'; }
+  // emoji
+  const emoji = ev.emoji||'';
+  document.getElementById('ev-emoji').value=emoji;
+  document.getElementById('ev-emoji-display').textContent=emoji;
+  document.getElementById('ev-emoji-label').textContent=emoji?'Selected':'No reaction';
+  document.getElementById('ev-emoji-clear').style.display=emoji?'inline':'none';
+  buildEmojiGrid(emoji);
   populateMemberSelect(); document.getElementById('ev-member').value=ev.memberId;
   openModal('event-modal');
 };
@@ -784,14 +930,64 @@ function saveEvent(){
   const date=document.getElementById('ev-date').value;
   if(!title){ showToast('Please enter an event name','#e5484d'); return; }
   if(!date){  showToast('Please choose a date','#e5484d'); return; }
+  const endDate=document.getElementById('ev-end-date').value;
+  if(endDate && endDate < date){ showToast('End date must be after start date','#e5484d'); return; }
   const id=document.getElementById('edit-event-id').value||uid();
-  fbSet(`/events/${id}`,{id,title,date,start:document.getElementById('ev-start').value,end:document.getElementById('ev-end').value,memberId:document.getElementById('ev-member').value,notes:document.getElementById('ev-notes').value.trim(),repeat:document.getElementById('ev-repeat').value,notify:document.getElementById('ev-notify').checked});
+  const emoji=document.getElementById('ev-emoji').value||'';
+  fbSet(`/events/${id}`,{
+    id, title, date,
+    endDate: endDate||null,
+    start: document.getElementById('ev-start').value,
+    end: document.getElementById('ev-end').value,
+    memberId: document.getElementById('ev-member').value,
+    notes: document.getElementById('ev-notes').value.trim(),
+    repeat: document.getElementById('ev-repeat').value,
+    notify: document.getElementById('ev-notify').checked,
+    emoji: emoji||null,
+    reactions: state.events[id]?.reactions||{}
+  });
   closeModal('event-modal');
   const member=state.members[document.getElementById('ev-member').value];
   showToast(`"${title}" saved for ${member?.name||''}`, member?.color||'#4f46e5');
 }
 window.saveEvent=saveEvent;
 window._deleteEvent=function(eventId){ const ev=state.events[eventId]; if(!ev) return; if(!confirm(`Delete "${ev.title}"?`)) return; fbRemove(`/events/${eventId}`); };
+
+// ── REACTIONS ─────────────────────────────────────
+// Reactions are stored as /events/{id}/reactions/{memberId} = emoji
+const QUICK_REACTIONS = ['👍','❤️','😂','😮','🎉','🙏'];
+function renderReactions(eventId, reactions) {
+  // Group reactions by emoji
+  const grouped = {};
+  reactions.forEach(r => { if(r){ grouped[r]=(grouped[r]||0)+1; } });
+
+  const myReaction = currentUser && state.events[eventId]?.reactions?.[currentUser];
+  let html = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">`;
+  // Show existing reaction counts
+  Object.entries(grouped).forEach(([emoji, count]) => {
+    const active = myReaction===emoji;
+    html+=`<button onclick="window._toggleReaction('${eventId}','${emoji}')" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};background:${active?'var(--accent-light)':'var(--surface)'};cursor:pointer;font-size:.82rem;font-family:inherit;">${emoji} <span style="font-size:.78rem;color:${active?'var(--accent)':'var(--muted)'};">${count}</span></button>`;
+  });
+  // Quick reaction picker (only show emojis not already reacted to by current user, limit to avoid clutter)
+  html+=`<div style="display:flex;gap:3px;">`;
+  QUICK_REACTIONS.forEach(e=>{
+    if(grouped[e]) return; // already shown above
+    html+=`<button onclick="window._toggleReaction('${eventId}','${e}')" title="React with ${e}" style="width:28px;height:28px;border-radius:8px;border:1px dashed var(--border);background:transparent;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;">${e}</button>`;
+  });
+  html+=`</div></div>`;
+  return html;
+}
+window._toggleReaction = function(eventId, emoji) {
+  if (!currentUser) return;
+  const existing = state.events[eventId]?.reactions?.[currentUser];
+  if (existing === emoji) {
+    // Remove reaction
+    fbRemove(`/events/${eventId}/reactions/${currentUser}`);
+  } else {
+    // Set/change reaction
+    fbSet(`/events/${eventId}/reactions/${currentUser}`, emoji);
+  }
+};
 
 // ── MODALS ───────────────────────────────────────
 function openModal(id){ document.getElementById(id).classList.add('open'); }
