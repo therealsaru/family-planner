@@ -213,7 +213,17 @@
     .fab:active { transform:scale(.93); }
     @media (prefers-reduced-motion:reduce) { *{transition:none!important;animation:none!important} }
 
-    /* EMOJI PICKER */
+    /* MEMBER CHIP PICKER */
+    .member-chip-grid { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; }
+    .member-chip { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 7px; border-radius:20px; border:2px solid var(--border); background:var(--bg); cursor:pointer; font-size:.85rem; font-family:inherit; color:var(--ink); transition:border-color .12s, background .12s; user-select:none; }
+    .member-chip .chip-av { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; color:white; flex-shrink:0; }
+    .member-chip.selected { border-color:var(--accent); background:var(--accent-light); }
+    .member-chip.selected .chip-av { box-shadow:0 0 0 2px var(--accent); }
+    /* Stacked avatars in event display */
+    .avatar-stack { display:inline-flex; }
+    .avatar-stack .av { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:700; color:white; border:2px solid var(--surface); margin-left:-6px; flex-shrink:0; }
+    .avatar-stack .av:first-child { margin-left:0; }
+    .avatar-stack-sm .av { width:16px; height:16px; font-size:.55rem; }
     .emoji-picker-wrap { border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--bg); }
     .emoji-grid { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
     .emoji-btn { width:36px; height:36px; border-radius:8px; border:2px solid transparent; background:var(--surface); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; justify-content:center; transition:border-color .12s,background .12s; }
@@ -322,7 +332,9 @@
       <div style="flex:1"><label>Start time</label><input type="time" id="ev-start" /></div>
       <div style="flex:1"><label>End time</label><input type="time" id="ev-end" /></div>
     </div>
-    <div class="field-row"><label>Family member</label><select id="ev-member"></select></div>
+    <div class="field-row"><label>Family members</label>
+      <div id="ev-member-chips" class="member-chip-grid"></div>
+    </div>
     <div class="field-row"><label>Notes (optional)</label><textarea id="ev-notes" placeholder="Any details…"></textarea></div>
     <div class="field-row"><label>Repeat</label>
       <select id="ev-repeat" onchange="window._onRepeatChange()">
@@ -666,17 +678,19 @@ function renderToday(el) {
   } else {
     html+=`<div class="timeline">`;
     todayEvents.forEach(ev=>{
-      const m=state.members[ev.memberId];
+      const ids = getEventMemberIds(ev);
+      const color = getEventColor(ev);
+      const nameList = ids.map(id=>state.members[id]?.name).filter(Boolean).join(', ');
       const isMulti=ev.endDate && ev.endDate!==ev.date;
       const repeatLabel=ev.repeat&&ev.repeat!=='none'?'🔁 '+ev.repeat:'one-off';
       const reactions=ev.reactions?Object.values(ev.reactions):[];
       const reactionHtml=renderReactions(ev.id, reactions);
       html+=`<div class="timeline-event" style="flex-wrap:wrap;">
         <div class="tl-time">${ev.start||'—'}</div>
-        <div class="tl-bar" style="background:${m?.color||'#ccc'}"></div>
+        <div class="tl-bar" style="background:${color}"></div>
         <div class="tl-info" style="flex:1">
           <div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">multi-day</span>`:''}</div>
-          <div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''} · ${repeatLabel}${ev.notify?' · 🔔':''}</div>
+          <div class="tl-member" style="display:flex;align-items:center;gap:6px;margin-top:4px;">${avatarStack(ev,true)}<span style="color:${color};font-size:.78rem">${nameList}</span><span style="color:var(--muted);font-size:.75rem">· ${repeatLabel}${ev.notify?' · 🔔':''}</span></div>
         </div>
         <div style="width:100%;padding-left:56px;margin-top:6px;">${reactionHtml}</div>
       </div>`;
@@ -692,9 +706,10 @@ function renderToday(el) {
   if(upcoming.length>0){
     html+=`<div class="section-label">Coming up</div><div class="timeline">`;
     upcoming.slice(0,5).forEach(ev=>{
-      const m=state.members[ev.memberId];
+      const color = getEventColor(ev);
+      const nameList = getEventMemberIds(ev).map(id=>state.members[id]?.name).filter(Boolean).join(', ');
       const dl=ev._d.toLocaleDateString('en-GB',{weekday:'short',month:'short',day:'numeric'});
-      html+=`<div class="timeline-event"><div class="tl-time" style="font-size:.74rem">${dl}</div><div class="tl-bar" style="background:${m?.color||'#ccc'}"></div><div class="tl-info"><div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}</div><div class="tl-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.start?' · '+ev.start:''}</div></div></div>`;
+      html+=`<div class="timeline-event"><div class="tl-time" style="font-size:.74rem">${dl}</div><div class="tl-bar" style="background:${color}"></div><div class="tl-info"><div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}</div><div class="tl-member" style="display:flex;align-items:center;gap:5px;">${avatarStack(ev,true)}<span style="color:${color};font-size:.75rem">${nameList}${ev.start?' · '+ev.start:''}</span></div></div></div>`;
     });
     html+=`</div>`;
   }
@@ -757,7 +772,7 @@ function renderCalendar(el) {
       const singleDayEvs=evs.filter(ev=>!ev.endDate||ev.endDate===ev.date);
       const multiDayEvs=evs.filter(ev=>ev.endDate&&ev.endDate!==ev.date);
       // Dots for single-day events
-      const dots=singleDayEvs.slice(0,4).map(ev=>`<div class="cal-dot" style="background:${state.members[ev.memberId]?.color||'#ccc'}"></div>`).join('');
+      const dots=singleDayEvs.slice(0,4).map(ev=>`<div class="cal-dot" style="background:${getEventColor(ev)}"></div>`).join('');
       // Small dot for multi-day events (bar will also show, but keep a dot as fallback indicator)
       const multiDot=multiDayEvs.length>0?`<div class="cal-dot" style="background:transparent"></div>`:'';
       html+=`<div class="cal-cell ${!cur?'other-month':''} ${isToday?'today':''} ${isSel?'selected':''}" ${ds?`onclick="window._selectDate('${ds}')"`:''}><div class="cal-date">${d}</div><div class="cal-dots">${dots}</div></div>`;
@@ -786,18 +801,20 @@ function renderCalendar(el) {
     html+=`<div class="empty-state" style="padding:20px 0"><div class="emoji">✨</div>No events</div>`;
   } else {
     selEvents.forEach(ev=>{
-      const m=state.members[ev.memberId];
+      const color = getEventColor(ev);
+      const ids = getEventMemberIds(ev);
+      const nameList = ids.map(id=>state.members[id]?.name).filter(Boolean).join(', ');
       const isMulti=ev.endDate&&ev.endDate!==ev.date;
       const multiLabel=isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">until ${ev.endDate}</span>`:'';
       const reactions=ev.reactions?Object.values(ev.reactions):[];
       const reactionHtml=renderReactions(ev.id, reactions);
       const repeatDisp=ev.repeat==='monthly-nth'?`🔁 ${describeNth(ev.date)}`:ev.repeat!=='none'?'🔁 '+ev.repeat:'';
       html+=`<div class="event-item">
-        <div class="event-color-bar" style="background:${m?.color||'#ccc'}"></div>
+        <div class="event-color-bar" style="background:${color}"></div>
         <div class="event-info">
           <div class="event-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${multiLabel}</div>
           <div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${repeatDisp}</div>
-          <div class="event-member" style="color:${m?.color||'#999'}">${m?.name||''}${ev.notify?' · 🔔':''}</div>
+          <div class="event-member" style="display:flex;align-items:center;gap:6px;margin-top:4px;">${avatarStack(ev,false)}<span style="color:${color}">${nameList}</span>${ev.notify?'<span style="color:var(--muted);font-size:.75rem">· 🔔</span>':''}</div>
           ${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}
           <div style="margin-top:8px">${reactionHtml}</div>
         </div>
@@ -831,7 +848,7 @@ function buildWeekBars(week, multiEvents, weekIndex) {
 
   sorted.forEach(ev => {
     const m = state.members[ev.memberId];
-    const color = m?.color || '#8b5cf6';
+    const color = getEventColor(ev);
 
     // Find overlap columns in this week
     let startCol = -1, endCol = -1;
@@ -963,7 +980,45 @@ window._saveEditMember=function(){
 };
 
 // ── EVENTS ───────────────────────────────────────
-function populateMemberSelect(){ document.getElementById('ev-member').innerHTML=members().map(m=>`<option value="${m.id}">${m.name}</option>`).join(''); }
+function buildMemberChips(selectedIds) {
+  const grid = document.getElementById('ev-member-chips');
+  if (!grid) return;
+  grid.innerHTML = members().map(m => {
+    const sel = selectedIds.includes(m.id);
+    return `<button type="button" class="member-chip${sel?' selected':''}" id="chip-${m.id}" onclick="window._toggleMemberChip('${m.id}')">
+      <div class="chip-av" style="background:${m.color}">${m.name[0]}</div>
+      ${m.name}
+    </button>`;
+  }).join('');
+}
+window._toggleMemberChip = function(memberId) {
+  const chip = document.getElementById(`chip-${memberId}`);
+  if (!chip) return;
+  chip.classList.toggle('selected');
+};
+function getSelectedMemberIds() {
+  return members().filter(m => document.getElementById(`chip-${m.id}`)?.classList.contains('selected')).map(m => m.id);
+}
+// Helper: get all memberIds from an event (supports both old memberId and new memberIds)
+function getEventMemberIds(ev) {
+  if (ev.memberIds && ev.memberIds.length) return ev.memberIds;
+  if (ev.memberId) return [ev.memberId];
+  return [];
+}
+// Primary color = first member's color
+function getEventColor(ev) {
+  const ids = getEventMemberIds(ev);
+  return ids.length ? (state.members[ids[0]]?.color || '#8b5cf6') : '#8b5cf6';
+}
+// Build stacked avatar HTML for an event
+function avatarStack(ev, small) {
+  const ids = getEventMemberIds(ev);
+  const cls = small ? 'avatar-stack avatar-stack-sm' : 'avatar-stack';
+  return `<span class="${cls}">${ids.slice(0,4).map(id=>{
+    const m=state.members[id];
+    return m?`<span class="av" style="background:${m.color}" title="${m.name}">${m.name[0]}</span>`:'';
+  }).join('')}${ids.length>4?`<span class="av" style="background:var(--muted)">+${ids.length-4}</span>`:''}</span>`;
+}
 // ── EMOJI PICKER ─────────────────────────────────
 const REACTION_EMOJIS = ['🎉','🎂','⚽','🏊','🎵','🏥','✈️','🛒','🏫','💼','🎨','🍕','🏋️','🎮','📚','🌟','❤️','🔧','🌿','🎤','🚗','👨‍👩‍👧','🎁','🏖️','💊','🤝','📅','🍽️','🎯','⚡'];
 function buildEmojiGrid(selectedEmoji) {
@@ -1029,7 +1084,8 @@ function openAddModal(dateStr){
   document.getElementById('monthly-nth-hint').style.display='none';
   window._clearEmoji();
   buildEmojiGrid('');
-  populateMemberSelect(); openModal('event-modal');
+  buildMemberChips(currentUser ? [currentUser] : (members().length ? [members()[0].id] : []));
+  openModal('event-modal');
 }
 window.openAddModal=openAddModal; window._openAddModal=openAddModal;
 window._editEvent=function(eventId){
@@ -1057,7 +1113,7 @@ window._editEvent=function(eventId){
   document.getElementById('ev-emoji-label').textContent=emoji?'Selected':'No reaction';
   document.getElementById('ev-emoji-clear').style.display=emoji?'inline':'none';
   buildEmojiGrid(emoji);
-  populateMemberSelect(); document.getElementById('ev-member').value=ev.memberId;
+  buildMemberChips(getEventMemberIds(ev));
   openModal('event-modal');
 };
 function saveEvent(){
@@ -1067,6 +1123,8 @@ function saveEvent(){
   if(!date){  showToast('Please choose a date','#e5484d'); return; }
   const endDate=document.getElementById('ev-end-date').value;
   if(endDate && endDate < date){ showToast('End date must be after start date','#e5484d'); return; }
+  const memberIds = getSelectedMemberIds();
+  if(!memberIds.length){ showToast('Please select at least one family member','#e5484d'); return; }
   const id=document.getElementById('edit-event-id').value||uid();
   const emoji=document.getElementById('ev-emoji').value||'';
   fbSet(`/events/${id}`,{
@@ -1074,7 +1132,8 @@ function saveEvent(){
     endDate: endDate||null,
     start: document.getElementById('ev-start').value,
     end: document.getElementById('ev-end').value,
-    memberId: document.getElementById('ev-member').value,
+    memberIds,
+    memberId: memberIds[0], // keep for backward compat with existing data
     notes: document.getElementById('ev-notes').value.trim(),
     repeat: document.getElementById('ev-repeat').value,
     notify: document.getElementById('ev-notify').checked,
@@ -1082,8 +1141,8 @@ function saveEvent(){
     reactions: state.events[id]?.reactions||{}
   });
   closeModal('event-modal');
-  const member=state.members[document.getElementById('ev-member').value];
-  showToast(`"${title}" saved for ${member?.name||''}`, member?.color||'#4f46e5');
+  const names = memberIds.map(id=>state.members[id]?.name).filter(Boolean).join(', ');
+  showToast(`"${title}" saved for ${names}`, getEventColor({memberIds}));
 }
 window.saveEvent=saveEvent;
 window._deleteEvent=function(eventId){ const ev=state.events[eventId]; if(!ev) return; if(!confirm(`Delete "${ev.title}"?`)) return; fbRemove(`/events/${eventId}`); };
