@@ -213,7 +213,26 @@
     .fab:active { transform:scale(.93); }
     @media (prefers-reduced-motion:reduce) { *{transition:none!important;animation:none!important} }
 
-    /* MEMBER CHIP PICKER */
+    /* COUNTDOWN CARD */
+    .countdown-card {
+      background: var(--ink); color: white;
+      border-radius: var(--radius); padding: 18px 20px;
+      margin-bottom: 20px; display: flex; align-items: center; gap: 16px;
+      box-shadow: 0 4px 20px rgba(26,26,46,.18);
+      cursor: pointer; transition: opacity .15s;
+    }
+    .countdown-card:hover { opacity: .92; }
+    .countdown-num {
+      font-family: 'DM Serif Display', serif;
+      font-size: 3rem; line-height: 1; flex-shrink: 0;
+      min-width: 64px; text-align: center;
+    }
+    .countdown-num span { display: block; font-family: 'DM Sans', sans-serif; font-size: .65rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; opacity: .6; margin-top: 2px; }
+    .countdown-info { flex: 1; min-width: 0; }
+    .countdown-info h3 { font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .countdown-info p { font-size: .8rem; opacity: .65; margin-top: 4px; }
+    .countdown-emoji { font-size: 1.8rem; flex-shrink: 0; }
+    .countdown-today { background: var(--success); }
     .member-chip-grid { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; }
     .member-chip { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 7px; border-radius:20px; border:2px solid var(--border); background:var(--bg); cursor:pointer; font-size:.85rem; font-family:inherit; color:var(--ink); transition:border-color .12s, background .12s; user-select:none; }
     .member-chip .chip-av { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; color:white; flex-shrink:0; }
@@ -359,6 +378,7 @@
       </div>
     </div>
     <label class="checkbox-row"><input type="checkbox" id="ev-notify" checked />Send a notification when this event starts</label>
+    <label class="checkbox-row"><input type="checkbox" id="ev-important" />⭐ Mark as important — show countdown on Today</label>
     <div class="modal-actions">
       <button class="cancel-btn" onclick="closeModal('event-modal')">Cancel</button>
       <button class="primary-btn" onclick="saveEvent()">Save event</button>
@@ -664,7 +684,119 @@ function showPage(page) {
 }
 window.showPage = showPage;
 
-// ── TODAY ────────────────────────────────────────
+// ── COUNTDOWN ────────────────────────────────────
+function renderCountdown() {
+  const today = todayStr();
+  const todayDate = new Date(today + 'T00:00:00');
+
+  // Find all important events, find the nearest future one (or today)
+  const candidates = events()
+    .filter(ev => ev.important)
+    .map(ev => {
+      // For repeating events find the next occurrence from today onwards
+      const nextDate = nextOccurrence(ev, today);
+      return nextDate ? { ev, nextDate } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.nextDate.localeCompare(b.nextDate));
+
+  if (!candidates.length) return '';
+
+  const { ev, nextDate } = candidates[0];
+  const evDate = new Date(nextDate + 'T00:00:00');
+  const diffMs = evDate - todayDate;
+  const days = Math.round(diffMs / 86400000);
+
+  const color = getEventColor(ev);
+  const ids = getEventMemberIds(ev);
+  const nameList = ids.map(id => state.members[id]?.name).filter(Boolean).join(', ');
+  const dateLabel = evDate.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+
+  let numHtml, cardClass = 'countdown-card';
+  if (days === 0) {
+    numHtml = `<div class="countdown-num">Today<span>🎉</span></div>`;
+    cardClass += ' countdown-today';
+  } else if (days === 1) {
+    numHtml = `<div class="countdown-num">1<span>day to go</span></div>`;
+  } else {
+    numHtml = `<div class="countdown-num">${days}<span>days to go</span></div>`;
+  }
+
+  return `<div class="${cardClass}" style="background:${days===0?'var(--success)':color}88;border-left:4px solid ${color};" onclick="window._selectDate('${nextDate}');showPage('calendar')">
+    ${numHtml}
+    <div class="countdown-info">
+      <h3>⭐ ${ev.title}${ev.emoji ? ' '+ev.emoji : ''}</h3>
+      <p>${dateLabel}${nameList ? ' · '+nameList : ''}</p>
+    </div>
+  </div>`;
+}
+
+// Find the next occurrence of an event on or after refDate
+function nextOccurrence(ev, refDate) {
+  const base = new Date(ev.date + 'T00:00:00');
+  const ref  = new Date(refDate + 'T00:00:00');
+
+  // Multi-day: if ref is within span, return ref; if span hasn't started, return start
+  if (ev.endDate) {
+    const end = new Date(ev.endDate + 'T00:00:00');
+    if (ref <= end && ref >= base) return refDate;
+    if (ref < base) return ev.date;
+    return null; // past
+  }
+
+  const repeat = ev.repeat || 'none';
+  if (repeat === 'none') {
+    return ev.date >= refDate ? ev.date : null;
+  }
+  if (repeat === 'daily') return refDate;
+
+  if (repeat === 'weekly') {
+    const diff = Math.round((ref - base) / 86400000);
+    if (diff < 0) return ev.date;
+    const rem = diff % 7;
+    const d = new Date(ref); d.setDate(d.getDate() + (rem === 0 ? 0 : 7 - rem));
+    return d.toISOString().slice(0,10);
+  }
+  if (repeat === 'biweekly') {
+    const diff = Math.round((ref - base) / 86400000);
+    if (diff < 0) return ev.date;
+    const rem = diff % 14;
+    const d = new Date(ref); d.setDate(d.getDate() + (rem === 0 ? 0 : 14 - rem));
+    return d.toISOString().slice(0,10);
+  }
+  if (repeat === 'monthly') {
+    // Same date each month — find next month where this day exists
+    let d = new Date(ref.getFullYear(), ref.getMonth(), base.getDate());
+    if (d < ref) d = new Date(d.getFullYear(), d.getMonth()+1, base.getDate());
+    return d.toISOString().slice(0,10);
+  }
+  if (repeat === 'monthly-nth') {
+    const { n, weekday } = getNthWeekdayOfMonth(ev.date);
+    // Walk month by month from ref
+    for (let m = 0; m < 24; m++) {
+      const yr = ref.getFullYear() + Math.floor((ref.getMonth() + m) / 12);
+      const mo = (ref.getMonth() + m) % 12;
+      const d = nthWeekdayInMonth(yr, mo, n, weekday);
+      if (d && d >= refDate) return d;
+    }
+    return null;
+  }
+  return null;
+}
+
+// Return YYYY-MM-DD of the nth weekday in year/month (e.g. 2nd Tuesday)
+function nthWeekdayInMonth(year, month, n, weekday) {
+  let count = 0;
+  for (let day = 1; day <= 31; day++) {
+    const d = new Date(year, month, day);
+    if (d.getMonth() !== month) break;
+    if (d.getDay() === weekday) {
+      count++;
+      if (count === n) return d.toISOString().slice(0,10);
+    }
+  }
+  return null;
+}
 function renderToday(el) {
   const now=new Date();
   const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -672,6 +804,7 @@ function renderToday(el) {
   const user=state.members[currentUser];
   const todayEvents=getEventsForDate(todayStr());
   let html=`<div class="today-greeting"><h2>Hello, ${user?.name||'there'} 👋</h2><p>${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}</p></div>`;
+  html += renderCountdown();
   html+=`<div class="section-label">Today's events</div>`;
   if (todayEvents.length===0) {
     html+=`<div class="empty-state"><div class="emoji">🗓️</div>Nothing on today — enjoy the peace!</div>`;
@@ -689,7 +822,7 @@ function renderToday(el) {
         <div class="tl-time">${ev.start||'—'}</div>
         <div class="tl-bar" style="background:${color}"></div>
         <div class="tl-info" style="flex:1">
-          <div class="tl-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">multi-day</span>`:''}</div>
+          <div class="tl-title">${ev.important?'⭐ ':''}${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${isMulti?` <span style="font-size:.72rem;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 5px">multi-day</span>`:''}</div>
           <div class="tl-member" style="display:flex;align-items:center;gap:6px;margin-top:4px;">${avatarStack(ev,true)}<span style="color:${color};font-size:.78rem">${nameList}</span><span style="color:var(--muted);font-size:.75rem">· ${repeatLabel}${ev.notify?' · 🔔':''}</span></div>
         </div>
         <div style="width:100%;padding-left:56px;margin-top:6px;">${reactionHtml}</div>
@@ -812,7 +945,7 @@ function renderCalendar(el) {
       html+=`<div class="event-item">
         <div class="event-color-bar" style="background:${color}"></div>
         <div class="event-info">
-          <div class="event-title">${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${multiLabel}</div>
+          <div class="event-title">${ev.important?'⭐ ':''}${ev.title}${ev.emoji?` <span class="event-emoji">${ev.emoji}</span>`:''}${multiLabel}</div>
           <div class="event-meta">${ev.start||''}${ev.end?' – '+ev.end:''} ${repeatDisp}</div>
           <div class="event-member" style="display:flex;align-items:center;gap:6px;margin-top:4px;">${avatarStack(ev,false)}<span style="color:${color}">${nameList}</span>${ev.notify?'<span style="color:var(--muted);font-size:.75rem">· 🔔</span>':''}</div>
           ${ev.notes?`<div class="event-meta" style="margin-top:4px">${ev.notes}</div>`:''}
@@ -1081,6 +1214,7 @@ function openAddModal(dateStr){
   document.getElementById('ev-notes').value='';
   document.getElementById('ev-repeat').value='none';
   document.getElementById('ev-notify').checked=true;
+  document.getElementById('ev-important').checked=false;
   document.getElementById('monthly-nth-hint').style.display='none';
   window._clearEmoji();
   buildEmojiGrid('');
@@ -1100,6 +1234,7 @@ window._editEvent=function(eventId){
   document.getElementById('ev-notes').value=ev.notes||'';
   document.getElementById('ev-repeat').value=ev.repeat||'none';
   document.getElementById('ev-notify').checked=ev.notify!==false;
+  document.getElementById('ev-important').checked=ev.important===true;
   // nth hint
   const hint = document.getElementById('monthly-nth-hint');
   if ((ev.repeat||'none')==='monthly-nth' && ev.date) {
@@ -1137,6 +1272,7 @@ function saveEvent(){
     notes: document.getElementById('ev-notes').value.trim(),
     repeat: document.getElementById('ev-repeat').value,
     notify: document.getElementById('ev-notify').checked,
+    important: document.getElementById('ev-important').checked,
     emoji: emoji||null,
     reactions: state.events[id]?.reactions||{}
   });
